@@ -228,7 +228,7 @@ export default function App() {
   return (
     <div style={{ fontFamily: "sans-serif", padding: 18, background: "#f6f7fb" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <h1 style={{ margin: 0, fontSize: 22 }}>鉄鋼スラグ路盤材 配合シミュレーション</h1>
+        <h1 style={{ margin: 0, fontSize: 22 }}>鉄鋼スラグ路盤材 配合シミュレーション v999</h1>
         <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
           <button onClick={() => window.location.reload()} style={pillBtn(false)}>
             再読込
