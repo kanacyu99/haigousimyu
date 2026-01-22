@@ -135,7 +135,7 @@ function App() {
   return (
     <div className="App">
       <header>
-        <h1>鉄鋼スラグ路盤材 配合シミュレーション</h1>
+        <h1>鉄鋼スラグ路盤材 配合シミュレーション v999-TEST</h1>
         <div className="storage-buttons">
           <button onClick={() => setMaterials(materials)}>再計算</button> {/* Dummy button to trigger re-render if needed */}
           <button onClick={handleClearLocalStorage}>データ削除</button>
