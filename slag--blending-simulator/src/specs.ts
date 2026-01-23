@@ -1,40 +1,4 @@
 // specs.ts
-// ---------------------------------------------
-// 粒度規格定義（表3 / 表2-4.2 / 表2-4.6 準拠）
-// ---------------------------------------------
-
-// ==============================
-// 全篩（入力用・表示用）
-// ==============================
-// 入力欄・ブレンド計算・グラフの X 軸は必ずこれを使う
-export const ALL_SIEVES_MM = [
-  53.0,
-  37.5,
-  31.5,
-  26.5,
-  19.0,
-  13.2,
-  4.75,
-  2.36,
-  0.425,
-  0.075,
-] as const;
-
-// ==============================
-// 型定義
-// ==============================
-export type ProductSpecName =
-  | "HMS-25"
-  | "MS-25"
-  | "CS-40"
-  | "CS-30"
-  | "CS-20"
-  | "RC-40"
-  | "RC-30"
-  | "RC-20"
-  | "RM-40"
-  | "RM-30"
-  | "RM-25";
 
 export type SieveSpec = {
   mm: number;
@@ -43,17 +7,31 @@ export type SieveSpec = {
 };
 
 export type ProductSpec = {
+  /** 表示名（ボタン表示＆グラフタイトルに使う） */
+  name: string;
+  /** 規格に“載っている篩”だけ（—は入れない） */
   sieves: SieveSpec[];
 };
 
-// ==============================
-// 規格本体
-// ==============================
-export const PRODUCT_SPECS: Record<ProductSpecName, ProductSpec> = {
-  // ------------------------------
-  // 鉄鋼スラグ路盤材（表3）
-  // ------------------------------
+export const ALL_SIEVES_MM = [
+  0.075,
+  0.425,
+  2.36,
+  4.75,
+  13.2,
+  19.0,
+  26.5,
+  31.5,
+  37.5,
+  53.0,
+] as const;
+
+export const PRODUCT_SPECS = {
+  // -------------------------
+  // 鉄鋼スラグ路盤材（表3-粒度）
+  // -------------------------
   "HMS-25": {
+    name: "HMS-25（鉄鋼スラグ路盤材）",
     sieves: [
       { mm: 31.5, lower: 100, upper: 100 },
       { mm: 26.5, lower: 95, upper: 100 },
@@ -66,6 +44,7 @@ export const PRODUCT_SPECS: Record<ProductSpecName, ProductSpec> = {
   },
 
   "MS-25": {
+    name: "MS-25（鉄鋼スラグ路盤材）",
     sieves: [
       { mm: 31.5, lower: 100, upper: 100 },
       { mm: 26.5, lower: 95, upper: 100 },
@@ -78,6 +57,7 @@ export const PRODUCT_SPECS: Record<ProductSpecName, ProductSpec> = {
   },
 
   "CS-40": {
+    name: "CS-40（鉄鋼スラグ路盤材）",
     sieves: [
       { mm: 53.0, lower: 100, upper: 100 },
       { mm: 37.5, lower: 95, upper: 100 },
@@ -88,16 +68,18 @@ export const PRODUCT_SPECS: Record<ProductSpecName, ProductSpec> = {
   },
 
   "CS-30": {
+    name: "CS-30（鉄鋼スラグ路盤材）",
     sieves: [
-      { mm: 37.5, lower: 100, upper: 100 },
-      { mm: 31.5, lower: 95, upper: 100 },
-      { mm: 19.0, lower: 55, upper: 85 },
+      { mm: 31.5, lower: 100, upper: 100 },
+      { mm: 26.5, lower: 95, upper: 100 },
+      { mm: 13.2, lower: 55, upper: 85 },
       { mm: 4.75, lower: 15, upper: 45 },
       { mm: 2.36, lower: 5, upper: 30 },
     ],
   },
 
   "CS-20": {
+    name: "CS-20（鉄鋼スラグ路盤材）",
     sieves: [
       { mm: 26.5, lower: 100, upper: 100 },
       { mm: 19.0, lower: 95, upper: 100 },
@@ -107,10 +89,11 @@ export const PRODUCT_SPECS: Record<ProductSpecName, ProductSpec> = {
     ],
   },
 
-  // ------------------------------
-  // 再生路盤材（表2-4.2）
-  // ------------------------------
+  // -------------------------
+  // 再生路盤材（表-2.4.2）
+  // -------------------------
   "RC-40": {
+    name: "RC-40（再生路盤材）",
     sieves: [
       { mm: 53.0, lower: 100, upper: 100 },
       { mm: 37.5, lower: 95, upper: 100 },
@@ -121,6 +104,7 @@ export const PRODUCT_SPECS: Record<ProductSpecName, ProductSpec> = {
   },
 
   "RC-30": {
+    name: "RC-30（再生路盤材）",
     sieves: [
       { mm: 37.5, lower: 100, upper: 100 },
       { mm: 31.5, lower: 95, upper: 100 },
@@ -131,6 +115,7 @@ export const PRODUCT_SPECS: Record<ProductSpecName, ProductSpec> = {
   },
 
   "RC-20": {
+    name: "RC-20（再生路盤材）",
     sieves: [
       { mm: 26.5, lower: 100, upper: 100 },
       { mm: 19.0, lower: 95, upper: 100 },
@@ -140,15 +125,16 @@ export const PRODUCT_SPECS: Record<ProductSpecName, ProductSpec> = {
     ],
   },
 
-  // ------------------------------
-  // 再生粒度調整砕石（表2-4.6）
-  // ※ RM系に 13.2mm は存在しない
-  // ------------------------------
+  // -------------------------
+  // 再生粒度調整砕石（表-2.4.6）
+  // -------------------------
   "RM-40": {
+    name: "RM-40（再生粒度調整砕石）",
     sieves: [
       { mm: 53.0, lower: 100, upper: 100 },
       { mm: 37.5, lower: 95, upper: 100 },
       { mm: 19.0, lower: 60, upper: 90 },
+      { mm: 13.2, lower: 30, upper: 65 },
       { mm: 4.75, lower: 30, upper: 65 },
       { mm: 2.36, lower: 20, upper: 50 },
       { mm: 0.425, lower: 10, upper: 30 },
@@ -157,10 +143,12 @@ export const PRODUCT_SPECS: Record<ProductSpecName, ProductSpec> = {
   },
 
   "RM-30": {
+    name: "RM-30（再生粒度調整砕石）",
     sieves: [
       { mm: 37.5, lower: 100, upper: 100 },
       { mm: 31.5, lower: 95, upper: 100 },
       { mm: 19.0, lower: 60, upper: 90 },
+      { mm: 13.2, lower: 30, upper: 65 },
       { mm: 4.75, lower: 30, upper: 65 },
       { mm: 2.36, lower: 20, upper: 50 },
       { mm: 0.425, lower: 10, upper: 30 },
@@ -169,34 +157,22 @@ export const PRODUCT_SPECS: Record<ProductSpecName, ProductSpec> = {
   },
 
   "RM-25": {
+    name: "RM-25（再生粒度調整砕石）",
     sieves: [
       { mm: 31.5, lower: 100, upper: 100 },
       { mm: 26.5, lower: 95, upper: 100 },
       { mm: 19.0, lower: 55, upper: 85 },
+      { mm: 13.2, lower: 30, upper: 65 },
       { mm: 4.75, lower: 30, upper: 65 },
       { mm: 2.36, lower: 20, upper: 50 },
       { mm: 0.425, lower: 10, upper: 30 },
       { mm: 0.075, lower: 2, upper: 10 },
     ],
   },
+} as const satisfies Record<string, ProductSpec>;
+
+export type ProductSpecName = keyof typeof PRODUCT_SPECS;
+
+export const isValidSpecName = (x: any): x is ProductSpecName => {
+  return typeof x === "string" && x in PRODUCT_SPECS;
 };
-
-// ==============================
-// UI 用ユーティリティ
-// ==============================
-export const SPEC_OPTIONS = [
-  { id: "HMS-25", label: "HMS-25（鉄鋼スラグ路盤材）" },
-  { id: "MS-25", label: "MS-25（鉄鋼スラグ路盤材）" },
-  { id: "CS-40", label: "CS-40（鉄鋼スラグ路盤材）" },
-  { id: "CS-30", label: "CS-30（鉄鋼スラグ路盤材）" },
-  { id: "CS-20", label: "CS-20（鉄鋼スラグ路盤材）" },
-  { id: "RC-40", label: "RC-40（再生路盤材）" },
-  { id: "RC-30", label: "RC-30（再生路盤材）" },
-  { id: "RC-20", label: "RC-20（再生路盤材）" },
-  { id: "RM-40", label: "RM-40（再生粒度調整砕石）" },
-  { id: "RM-30", label: "RM-30（再生粒度調整砕石）" },
-  { id: "RM-25", label: "RM-25（再生粒度調整砕石）" },
-] as const;
-
-export const isValidSpecName = (v: any): v is ProductSpecName =>
-  typeof v === "string" && v in PRODUCT_SPECS;
