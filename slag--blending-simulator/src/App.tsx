@@ -1,36 +1,48 @@
-import { useEffect, useMemo, useState } from "react";
-import Plot from "react-plotly.js";
-import { v4 as uuidv4 } from "uuid";
+import { useEffect, useMemo, useState } from 'react';
+import Plot from 'react-plotly.js';
+import { v4 as uuidv4 } from 'uuid';
 
-import {
-  PRODUCT_SPECS,
-  ProductSpecName,
-  SPEC_OPTIONS,
-  isValidSpecName,
-  ALL_SIEVES_MM,
-} from "./specs";
-import { Material, BlendedSieveResult } from "./types";
+import { PRODUCT_SPECS } from './specs';
+import type { ProductSpecName } from './specs';
+import type { Material, BlendedSieveResult } from './types';
+import './App.css';
 
 // ------------------------------
 // utils
 // ------------------------------
-const normMm = (x: number) => Number(x.toFixed(3));
+const toNum = (v: any, fallback = 0) => {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : fallback;
+};
 
-const ALL_SIEVES = ALL_SIEVES_MM.map(normMm);
+const isValidSpecName = (x: any): x is ProductSpecName => {
+  return x && typeof x === 'string' && x in PRODUCT_SPECS;
+};
+
+// 全規格に登場する「全篩」(mm) を集約して、小→大にソート
+const ALL_SIEVES: number[] = (() => {
+  const set = new Set<number>();
+  Object.values(PRODUCT_SPECS).forEach(spec => {
+    spec.sieves.forEach(s => set.add(Number(s.mm)));
+  });
+  return Array.from(set).sort((a, b) => a - b); // ★小→大（左が小の思想）
+})();
 
 // 旧データ/不足キーを補完して安全化
 const hydrateMaterial = (m: any): Material => {
-  const passing: Record<number, number> = { ...(m?.passingPercentages ?? {}) };
+  const rawPassing = (m?.passingPercentages ?? {}) as Record<number, any>;
+  const passing: Record<number, number> = {};
 
   for (const mm of ALL_SIEVES) {
-    const v = Number(passing[mm] ?? 0);
-    passing[mm] = Number.isFinite(v) ? v : 0;
+    const v = toNum(rawPassing[mm], 0);
+    // 0〜100に寄せる（入力が変でも壊れない）
+    passing[mm] = Math.min(100, Math.max(0, v));
   }
 
   return {
-    id: typeof m?.id === "string" ? m.id : uuidv4(),
-    name: typeof m?.name === "string" ? m.name : "原料",
-    ratio: Number.isFinite(Number(m?.ratio)) ? Number(m.ratio) : 0,
+    id: typeof m?.id === 'string' ? m.id : uuidv4(),
+    name: typeof m?.name === 'string' ? m.name : '原料',
+    ratio: toNum(m?.ratio, 0),
     passingPercentages: passing,
   };
 };
@@ -41,56 +53,57 @@ const createNewMaterial = (): Material => {
 
   return {
     id: uuidv4(),
-    name: "新しい原料",
+    name: `原料 ${Math.floor(Math.random() * 100)}`,
     ratio: 0,
     passingPercentages: passing,
   };
 };
 
 export default function App() {
-  // ------------------------------
-  // state
-  // ------------------------------
-  const [specName, setSpecName] = useState<ProductSpecName>("HMS-25");
+  const [specName, setSpecName] = useState<ProductSpecName>('HMS-25');
   const [materials, setMaterials] = useState<Material[]>([createNewMaterial()]);
 
   // ------------------------------
   // localStorage load (safe)
   // ------------------------------
   useEffect(() => {
-    const saved = localStorage.getItem("slagBlendingState");
+    const saved = localStorage.getItem('slagBlendingState');
     if (!saved) return;
 
     try {
       const parsed = JSON.parse(saved);
-      const savedSpec = parsed?.specName;
-      const savedMaterials = parsed?.materials;
 
-      const safeSpec: ProductSpecName = isValidSpecName(savedSpec)
-        ? savedSpec
-        : "HMS-25";
+      const savedSpec = parsed?.specName;
+      const safeSpec: ProductSpecName = isValidSpecName(savedSpec) ? savedSpec : 'HMS-25';
       setSpecName(safeSpec);
 
+      const savedMaterials = parsed?.materials;
       if (Array.isArray(savedMaterials) && savedMaterials.length > 0) {
         setMaterials(savedMaterials.map(hydrateMaterial));
       } else {
         setMaterials([createNewMaterial()]);
       }
-    } catch {
-      setSpecName("HMS-25");
+    } catch (e) {
+      console.error('Failed to load state from localStorage', e);
+      localStorage.removeItem('slagBlendingState');
+      setSpecName('HMS-25');
       setMaterials([createNewMaterial()]);
     }
   }, []);
 
   // save
   useEffect(() => {
-    const payload = JSON.stringify({ specName, materials });
-    localStorage.setItem("slagBlendingState", payload);
+    try {
+      const payload = JSON.stringify({ specName, materials });
+      localStorage.setItem('slagBlendingState', payload);
+    } catch (e) {
+      console.error('Failed to save state to localStorage', e);
+    }
   }, [specName, materials]);
 
-  const handleClear = () => {
-    localStorage.removeItem("slagBlendingState");
-    setSpecName("HMS-25");
+  const handleClearLocalStorage = () => {
+    localStorage.removeItem('slagBlendingState');
+    setSpecName('HMS-25');
     setMaterials([createNewMaterial()]);
   };
 
@@ -99,34 +112,34 @@ export default function App() {
   // ------------------------------
   const addMaterial = () => {
     if (materials.length >= 5) return;
-    setMaterials((prev) => [...prev, createNewMaterial()]);
+    setMaterials(prev => [...prev, createNewMaterial()]);
   };
 
   const removeMaterial = (id: string) => {
-    setMaterials((prev) => prev.filter((m) => m.id !== id));
+    setMaterials(prev => prev.filter(m => m.id !== id));
   };
 
-  const updateMaterial = (id: string, patch: Partial<Material>) => {
-    setMaterials((prev) =>
-      prev.map((m) => (m.id === id ? { ...m, ...patch } : m))
-    );
+  const updateMaterialName = (id: string, name: string) => {
+    setMaterials(prev => prev.map(m => (m.id === id ? { ...m, name } : m)));
+  };
+
+  const updateMaterialRatio = (id: string, ratioStr: string) => {
+    const ratio = toNum(ratioStr, 0);
+    setMaterials(prev => prev.map(m => (m.id === id ? { ...m, ratio } : m)));
   };
 
   const handlePassingChange = (id: string, sieveMm: number, value: string) => {
-    const mm = normMm(sieveMm);
-    const parsed = Number(value);
+    const v = toNum(value, 0);
+    const clipped = Math.min(100, Math.max(0, v));
 
-    if (!Number.isFinite(parsed)) return;
-    if (parsed < 0 || parsed > 100) return;
-
-    setMaterials((prev) =>
-      prev.map((m) =>
+    setMaterials(prev =>
+      prev.map(m =>
         m.id === id
           ? {
               ...m,
               passingPercentages: {
                 ...m.passingPercentages,
-                [mm]: parsed,
+                [sieveMm]: clipped,
               },
             }
           : m
@@ -138,325 +151,266 @@ export default function App() {
   // calculations
   // ------------------------------
   const totalRatio = useMemo(
-    () => materials.reduce((sum, m) => sum + Number(m.ratio || 0), 0),
+    () => materials.reduce((sum, m) => sum + toNum(m.ratio, 0), 0),
     [materials]
   );
 
   const selectedSpec = PRODUCT_SPECS[specName];
+  const isTotalRatioOk = Math.round(totalRatio * 10) / 10 === 100;
 
-  // 全篩（入力用）でブレンド通過率を計算して保持
+  // 全篩でブレンド通過率を計算
   const blendedPassingByMm = useMemo(() => {
-    if (Math.round(totalRatio * 10) / 10 !== 100) return null;
+    if (!isTotalRatioOk) return null;
 
     const map = new Map<number, number>();
     for (const mm of ALL_SIEVES) {
       const weighted = materials.reduce((sum, material) => {
-        const ratio = Number(material.ratio || 0);
-        const passing = Number(material.passingPercentages[mm] || 0);
+        const ratio = toNum(material.ratio, 0);
+        const passing = toNum(material.passingPercentages[mm], 0);
         return sum + (ratio / 100) * passing;
       }, 0);
 
       map.set(mm, Math.round(weighted * 10) / 10);
     }
     return map;
-  }, [materials, totalRatio]);
+  }, [materials, isTotalRatioOk]);
 
-  // 表示用：規格にある篩だけ結果を出す（下限/上限/判定）
+  // 表示（判定）用：規格に含まれる篩だけ
   const blendedResultsSpecOnly: BlendedSieveResult[] = useMemo(() => {
     if (!blendedPassingByMm) return [];
 
-    return selectedSpec.sieves.map((sieve) => {
-      const mm = normMm(sieve.mm);
+    return selectedSpec.sieves.map(s => {
+      const mm = Number(s.mm);
       const passing = blendedPassingByMm.get(mm) ?? 0;
-
       return {
         mm,
-        lower: sieve.lower,
-        upper: sieve.upper,
+        lower: s.lower,
+        upper: s.upper,
         passing,
-        isOk: passing >= sieve.lower && passing <= sieve.upper,
+        isOk: passing >= s.lower && passing <= s.upper,
       };
     });
   }, [blendedPassingByMm, selectedSpec]);
 
   // ------------------------------
-  // graph series
+  // graph data
   // ------------------------------
-  const xAll = ALL_SIEVES;
+  const xAll = ALL_SIEVES; // 小→大（左が小）
+  const yBlend = xAll.map(mm => (blendedPassingByMm ? blendedPassingByMm.get(mm) ?? null : null));
 
-  const blendedY = xAll.map((mm) => blendedPassingByMm?.get(mm) ?? null);
-
-  // 規格線：規格にない篩は null（線を途切れさせる）
   const specIndex = useMemo(() => {
-    return new Map(selectedSpec.sieves.map((s) => [normMm(s.mm), s]));
+    const m = new Map<number, { lower: number; upper: number }>();
+    selectedSpec.sieves.forEach(s => m.set(Number(s.mm), { lower: s.lower, upper: s.upper }));
+    return m;
   }, [selectedSpec]);
 
-  const lowerY = xAll.map((mm) => specIndex.get(mm)?.lower ?? null);
-  const upperY = xAll.map((mm) => specIndex.get(mm)?.upper ?? null);
+  const yLower = xAll.map(mm => specIndex.get(mm)?.lower ?? null);
+  const yUpper = xAll.map(mm => specIndex.get(mm)?.upper ?? null);
 
-  // ------------------------------
-  // UI styles (軽め)
-  // ------------------------------
-  const cardStyle: React.CSSProperties = {
-    border: "1px solid #e5e7eb",
-    borderRadius: 10,
-    padding: 16,
-    background: "#fff",
-  };
+  // tick（小→大）※密ならPlotlyに任せてもOKだけど、見やすさ優先で入れておく
+  const tickvals = xAll;
+  const ticktext = xAll.map(mm => mm.toString());
 
-  const sectionTitle: React.CSSProperties = {
-    fontSize: 18,
-    fontWeight: 700,
-    margin: "0 0 10px",
-  };
-
-  const pillBtn = (active: boolean): React.CSSProperties => ({
-    padding: "8px 10px",
-    borderRadius: 8,
-    border: "1px solid " + (active ? "#2563eb" : "#d1d5db"),
-    background: active ? "#2563eb" : "#f3f4f6",
-    color: active ? "#fff" : "#111827",
-    cursor: "pointer",
-    fontSize: 13,
-    fontWeight: 600,
-    whiteSpace: "nowrap",
-  });
-
-  // ------------------------------
-  // render
-  // ------------------------------
   return (
-    <div style={{ fontFamily: "sans-serif", padding: 18, background: "#f6f7fb" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <h1 style={{ margin: 0, fontSize: 22 }}>鉄鋼スラグ路盤材 配合シミュレーション v999-TEST</h1>
-        <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
-          <button onClick={() => window.location.reload()} style={pillBtn(false)}>
-            再読込
-          </button>
-          <button onClick={handleClear} style={pillBtn(false)}>
-            データ削除
-          </button>
+    <div className="App">
+      <header>
+        <h1>鉄鋼スラグ路盤材 配合シミュレーション</h1>
+        <div className="storage-buttons">
+          <button onClick={() => setMaterials([...materials])}>再計算</button>
+          <button onClick={handleClearLocalStorage}>データ削除</button>
         </div>
-      </div>
+      </header>
 
-      {/* 1 規格選択 */}
-      <div style={{ ...cardStyle, marginTop: 14 }}>
-        <div style={sectionTitle}>1. 製品規格の選択</div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-          {SPEC_OPTIONS.map((opt) => (
-            <button
-              key={opt.id}
-              onClick={() => setSpecName(opt.id)}
-              style={pillBtn(specName === opt.id)}
-              title={opt.id}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* 2 入力 */}
-      <div style={{ ...cardStyle, marginTop: 14 }}>
-        <div style={sectionTitle}>2. 原料の粒度と配合率を入力（入力は全篩表示）</div>
-
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <button onClick={addMaterial} style={pillBtn(false)}>
-            原料を追加（{materials.length}/5）
-          </button>
-
-          <div style={{ marginLeft: "auto", fontWeight: 700 }}>
-            配合率 合計: {Math.round(totalRatio * 10) / 10} %
-            {Math.round(totalRatio * 10) / 10 !== 100 && (
-              <span style={{ color: "#dc2626", marginLeft: 8 }}>
-                （合計が100%ではありません）
-              </span>
-            )}
+      <main>
+        {/* 1 規格選択 */}
+        <section className="spec-selection">
+          <h2>1. 製品規格の選択</h2>
+          <div className="spec-buttons">
+            {Object.keys(PRODUCT_SPECS).map(key => (
+              <button
+                key={key}
+                className={specName === key ? 'active' : ''}
+                onClick={() => setSpecName(key as ProductSpecName)}
+              >
+                {PRODUCT_SPECS[key as ProductSpecName].name}
+              </button>
+            ))}
           </div>
-        </div>
+        </section>
 
-        <div style={{ overflowX: "auto", marginTop: 10 }}>
-          <table
-            style={{
-              width: "100%",
-              borderCollapse: "collapse",
-              minWidth: 900,
-              background: "#fff",
-            }}
-          >
-            <thead>
-              <tr style={{ background: "#f3f4f6" }}>
-                <th style={{ border: "1px solid #e5e7eb", padding: 8 }}>ふるい(mm)</th>
-                {materials.map((m, idx) => (
-                  <th key={m.id} style={{ border: "1px solid #e5e7eb", padding: 8 }}>
-                    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        {/* 2 入力（全篩） */}
+        <section className="material-input">
+          <h2>2. 原料の粒度と配合率を入力（全篩表示）</h2>
+
+          <div className="material-controls" style={{ gap: 12, alignItems: 'center' }}>
+            <button onClick={addMaterial} disabled={materials.length >= 5}>
+              原料を追加 ({materials.length}/5)
+            </button>
+
+            <div className={`total-ratio ${!isTotalRatioOk ? 'ratio-error' : ''}`}>
+              配合率 合計: {totalRatio.toFixed(1)} %
+              {!isTotalRatioOk && <span className="error-message"> (合計が100%ではありません)</span>}
+            </div>
+          </div>
+
+          <div className="materials-table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>ふるい (mm)</th>
+                  {materials.map(m => (
+                    <th key={m.id}>
                       <input
+                        type="text"
                         value={m.name}
-                        onChange={(e) => updateMaterial(m.id, { name: e.target.value })}
-                        style={{
-                          width: 240,
-                          padding: "6px 8px",
-                          border: "1px solid #d1d5db",
-                          borderRadius: 6,
-                        }}
+                        onChange={e => updateMaterialName(m.id, e.target.value)}
+                        className="material-name-input"
+                        placeholder="原料名"
                       />
-                      <button
-                        onClick={() => removeMaterial(m.id)}
-                        style={{
-                          padding: "6px 10px",
-                          borderRadius: 6,
-                          border: "1px solid #ef4444",
-                          background: "#ef4444",
-                          color: "#fff",
-                          cursor: "pointer",
-                          fontWeight: 700,
-                        }}
-                        title="この原料を削除"
-                      >
-                        削除
-                      </button>
-                    </div>
-                    <div style={{ marginTop: 8, display: "flex", gap: 8, alignItems: "center" }}>
-                      <div style={{ fontSize: 12, color: "#374151" }}>配合率(%)</div>
-                      <input
-                        type="number"
-                        value={m.ratio}
-                        onChange={(e) => updateMaterial(m.id, { ratio: Number(e.target.value) })}
-                        style={{
-                          width: 110,
-                          padding: "6px 8px",
-                          border: "1px solid #d1d5db",
-                          borderRadius: 6,
-                        }}
-                      />
-                    </div>
-                  </th>
-                ))}
-              </tr>
-            </thead>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
 
-            <tbody>
-              {xAll.map((mm) => (
-                <tr key={mm}>
-                  <td style={{ border: "1px solid #e5e7eb", padding: 8, fontWeight: 700 }}>
-                    {mm}
-                  </td>
-                  {materials.map((m) => (
-                    <td key={m.id} style={{ border: "1px solid #e5e7eb", padding: 8 }}>
+              <tbody>
+                {xAll.map(mm => (
+                  <tr key={mm}>
+                    <td>{mm}</td>
+                    {materials.map(m => (
+                      <td key={m.id}>
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="0.1"
+                          value={m.passingPercentages[mm] ?? ''}
+                          onChange={e => handlePassingChange(m.id, mm, e.target.value)}
+                        />
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+
+              <tfoot>
+                <tr>
+                  <td>配合率 (%)</td>
+                  {materials.map(m => (
+                    <td key={m.id}>
                       <input
                         type="number"
-                        value={m.passingPercentages[mm] ?? 0}
-                        onChange={(e) => handlePassingChange(m.id, mm, e.target.value)}
-                        style={{
-                          width: "100%",
-                          padding: "6px 8px",
-                          border: "1px solid #d1d5db",
-                          borderRadius: 6,
-                        }}
+                        min="0"
+                        max="100"
+                        step="0.1"
+                        value={m.ratio}
+                        onChange={e => updateMaterialRatio(m.id, e.target.value)}
+                        className={!isTotalRatioOk ? 'ratio-error' : ''}
                       />
                     </td>
                   ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        <div style={{ marginTop: 8, fontSize: 12, color: "#6b7280" }}>
-          ※入力欄は全篩を表示します。判定（下限/上限）は選択した規格に存在する篩のみを表示します（表の「—」は判定対象外）。
-        </div>
-      </div>
-
-      {/* 3 結果（規格篩だけ） */}
-      <div style={{ ...cardStyle, marginTop: 14 }}>
-        <div style={sectionTitle}>3. ブレンド後の計算結果（規格篩のみ表示）</div>
-
-        {blendedPassingByMm === null ? (
-          <div style={{ color: "#dc2626", fontWeight: 700 }}>
-            配合率の合計を100%にしてください（現在 {Math.round(totalRatio * 10) / 10}%）
-          </div>
-        ) : (
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
-              <tr style={{ background: "#f3f4f6" }}>
-                <th style={{ border: "1px solid #e5e7eb", padding: 8 }}>ふるい(mm)</th>
-                <th style={{ border: "1px solid #e5e7eb", padding: 8 }}>下限</th>
-                <th style={{ border: "1px solid #e5e7eb", padding: 8 }}>上限</th>
-                <th style={{ border: "1px solid #e5e7eb", padding: 8 }}>計算値</th>
-                <th style={{ border: "1px solid #e5e7eb", padding: 8 }}>判定</th>
-              </tr>
-            </thead>
-            <tbody>
-              {blendedResultsSpecOnly.map((r) => (
-                <tr key={r.mm}>
-                  <td style={{ border: "1px solid #e5e7eb", padding: 8 }}>{r.mm}</td>
-                  <td style={{ border: "1px solid #e5e7eb", padding: 8 }}>{r.lower}</td>
-                  <td style={{ border: "1px solid #e5e7eb", padding: 8 }}>{r.upper}</td>
-                  <td style={{ border: "1px solid #e5e7eb", padding: 8 }}>{r.passing}</td>
-                  <td
-                    style={{
-                      border: "1px solid #e5e7eb",
-                      padding: 8,
-                      fontWeight: 800,
-                      color: r.isOk ? "#16a34a" : "#dc2626",
-                    }}
-                  >
-                    {r.isOk ? "OK" : "NG"}
-                  </td>
+                <tr>
+                  <td></td>
+                  {materials.map(m => (
+                    <td key={m.id} className="remove-button-cell">
+                      <button onClick={() => removeMaterial(m.id)} className="remove-material-btn">
+                        削除
+                      </button>
+                    </td>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </tfoot>
+            </table>
+          </div>
+        </section>
+
+        {/* 3 結果（規格篩のみ） */}
+        {isTotalRatioOk && blendedResultsSpecOnly.length > 0 && (
+          <>
+            <section className="results-output">
+              <h2>3. ブレンド後の計算結果（規格篩のみ表示）</h2>
+              <table>
+                <thead>
+                  <tr>
+                    <th>ふるい (mm)</th>
+                    <th>下限値</th>
+                    <th>上限値</th>
+                    <th>計算値</th>
+                    <th>判定</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {blendedResultsSpecOnly.map(r => (
+                    <tr key={r.mm} className={r.isOk ? 'ok' : 'ng'}>
+                      <td>{r.mm}</td>
+                      <td>{r.lower}</td>
+                      <td>{r.upper}</td>
+                      <td>{r.passing.toFixed(1)}</td>
+                      <td>{r.isOk ? 'OK' : 'NG'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div style={{ fontSize: 12, opacity: 0.8, marginTop: 8 }}>
+                ※入力は全篩ですが、判定（OK/NG）は選択した規格に含まれる篩のみで行います。
+              </div>
+            </section>
+
+            {/* 4 グラフ */}
+            <section className="graph-output">
+              <h2>4. 粒度加積曲線グラフ（左が小）</h2>
+              <Plot
+                data={[
+                  {
+                    x: xAll,
+                    y: yLower,
+                    type: 'scatter',
+                    mode: 'lines',
+                    name: '規格下限',
+                    line: { dash: 'dash' },
+                  },
+                  {
+                    x: xAll,
+                    y: yUpper,
+                    type: 'scatter',
+                    mode: 'lines',
+                    name: '規格上限',
+                    line: { dash: 'dash' },
+                  },
+                  {
+                    x: xAll,
+                    y: yBlend,
+                    type: 'scatter',
+                    mode: 'lines+markers',
+                    name: 'ブレンド結果',
+                  },
+                ]}
+                layout={{
+                  title: { text: `${selectedSpec.name} 粒度加積曲線` },
+                  xaxis: {
+                    title: { text: 'ふるい目 (mm)' },
+                    type: 'log',
+                    autorange: true, // ★左が小
+                    tickvals,
+                    ticktext,
+                  },
+                  yaxis: {
+                    title: { text: '通過質量百分率 (%)' },
+                    range: [0, 105],
+                  },
+                  margin: { l: 50, r: 30, b: 60, t: 50 },
+                  legend: { orientation: 'h' },
+                }}
+                config={{ responsive: true }}
+                style={{ width: '100%', height: '520px' }}
+              />
+              <div style={{ fontSize: 12, opacity: 0.8, marginTop: 8 }}>
+                ※規格に存在しない篩は上下限を表示しないため、規格線はその部分で途切れます。
+              </div>
+            </section>
+          </>
         )}
-      </div>
-
-      {/* 4 グラフ */}
-      <div style={{ ...cardStyle, marginTop: 14 }}>
-        <div style={sectionTitle}>4. 粒度加積曲線グラフ</div>
-
-        <Plot
-          data={[
-            {
-              x: xAll,
-              y: lowerY,
-              name: "下限",
-              mode: "lines",
-              line: { dash: "dash" },
-            },
-            {
-              x: xAll,
-              y: upperY,
-              name: "上限",
-              mode: "lines",
-              line: { dash: "dash" },
-            },
-            {
-              x: xAll,
-              y: blendedY,
-              name: "ブレンド結果",
-              mode: "lines+markers",
-            },
-          ]}
-          layout={{
-            xaxis: {
-              title: "ふるい(mm)",
-              autorange: "reversed",
-            },
-            yaxis: {
-              title: "通過質量百分率(%)",
-              range: [0, 100],
-            },
-            height: 420,
-            margin: { l: 55, r: 20, t: 20, b: 55 },
-            legend: { orientation: "h" },
-          }}
-          style={{ width: "100%" }}
-          config={{ displayModeBar: false, responsive: true }}
-        />
-        <div style={{ marginTop: 6, fontSize: 12, color: "#6b7280" }}>
-          ※規格に存在しない篩の上下限は表示しないため、下限/上限線はその部分で途切れます。
-        </div>
-      </div>
+      </main>
     </div>
   );
 }
